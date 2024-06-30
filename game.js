@@ -1,186 +1,128 @@
-const gameContainer = document.getElementById('gameContainer');
-const player = document.getElementById('player');
-const startGameButton = document.getElementById('startGameButton');
-const restartGameButton = document.getElementById('restartGameButton');
-const scoreDisplay = document.getElementById('score');
-const openingSlideshow = document.getElementById('openingSlideshow');
-const endingVideo = document.getElementById('endingVideo');
-const loadingMessage = document.getElementById('loadingMessage');
-const backgroundMusic = document.getElementById('backgroundMusic');
-const endMessage = document.getElementById('endMessage');
-let bullets = [];
-let aliens = [];
-let score = 0;
-let gameRunning = false;
-
-startGameButton.addEventListener('click', () => {
-    startGameButton.style.display = 'none';
-    loadingMessage.style.display = 'block';
-    playOpeningSlideshow();
-});
-
-restartGameButton.addEventListener('click', () => {
-    restartGame();
-});
-
-function restartGame() {
-    gameRunning = true;
-    restartGameButton.style.display = 'none';
-    endMessage.style.display = 'none';
-    score = 0;
-    scoreDisplay.textContent = `Score: ${score}`;
-    while (bullets.length > 0) {
-        bullets.pop().remove();
-    }
-    while (aliens.length > 0) {
-        aliens.pop().remove();
-    }
-    backgroundMusic.currentTime = 0;
-    backgroundMusic.play();
-}
-
-function playOpeningSlideshow() {
-    openingSlideshow.style.display = 'block';
-    backgroundMusic.currentTime = 0;
-    backgroundMusic.play();
-    const video = openingSlideshow.querySelector('video');
-    video.play();
-
-    setTimeout(() => {
+document.addEventListener('DOMContentLoaded', function () {
+    const gameContainer = document.getElementById('gameContainer');
+    const player = document.getElementById('player');
+    const startGameButton = document.getElementById('startGameButton');
+    const restartGameButton = document.getElementById('restartGameButton');
+    const scoreDisplay = document.getElementById('score');
+    const openingSlideshow = document.getElementById('openingSlideshow');
+    const loadingMessage = document.getElementById('loadingMessage');
+    const endingVideo = document.getElementById('endingVideo');
+    const backgroundMusic = document.getElementById('backgroundMusic');
+    const endMessage = document.getElementById('endMessage');
+    
+    let score = 0;
+    let gameInterval;
+    let alienSpawnInterval;
+    let isGameRunning = false;
+    
+    function startGame() {
         openingSlideshow.style.display = 'none';
-        loadingMessage.style.display = 'none';
-        if (!gameRunning) {
-            startGame();
-        }
-    }, video.duration * 1000);
-}
-
-function startGame() {
-    gameRunning = true;
-    backgroundMusic.play();
-    spawnAliens();
-    handlePlayerMovement();
-
-    // Start ending video after 8 seconds if game is not restarted
-    setTimeout(() => {
-        if (!gameRunning) {
-            playEndingVideo();
-        }
-    }, 8000);
-}
-
-function endGame() {
-    gameRunning = false;
-    backgroundMusic.pause();
-    endMessage.style.display = 'block';
-    restartGameButton.style.display = 'block';
-    scoreDisplay.style.fontSize = '36px';
-    scoreDisplay.style.backgroundColor = 'orange';
-
-    // Show ending video and restart button after 8 seconds
-    setTimeout(() => {
-        if (!gameRunning) {
-            playEndingVideo();
-            restartGameButton.style.display = 'block';
-        }
-    }, 8000);
-}
-
-function playEndingVideo() {
-    gameRunning = false;
-    endingVideo.style.display = 'block';
-    endingVideo.play();
-    endingVideo.addEventListener('ended', () => {
-        endingVideo.style.display = 'none';
-        restartGameButton.style.display = 'block';
-    });
-}
-
-function spawnAliens() {
-    setInterval(() => {
-        if (gameRunning) {
-            const alien = document.createElement('div');
-            alien.className = 'alien';
-            alien.style.top = '0px';
-            const randomLeft = Math.random() * (window.innerWidth - 150); // Random left position
-            alien.style.left = randomLeft + 'px';
-            gameContainer.appendChild(alien);
-            aliens.push(alien);
-
-            const moveAlien = setInterval(() => {
-                alien.style.top = (parseInt(alien.style.top) + 2) + 'px';
-                if (parseInt(alien.style.top) > window.innerHeight) {
-                    clearInterval(moveAlien);
-                    alien.remove();
-                    aliens = aliens.filter(a => a !== alien);
-                }
-                if (isColliding(player, alien)) {
-                    handleCollision();
-                }
-            }, 10);
-        }
-    }, 1000);
-}
-
-function handlePlayerMovement() {
-    document.addEventListener('mousemove', movePlayer);
-    document.addEventListener('touchmove', movePlayer);
-
-    function movePlayer(event) {
-        let x = event.clientX || event.touches[0].clientX;
-        if (gameRunning) {
-            player.style.left = `${x - player.offsetWidth / 2}px`;
-        }
+        startGameButton.style.display = 'none';
+        score = 0;
+        scoreDisplay.textContent = 'Score: 0';
+        isGameRunning = true;
+        gameInterval = setInterval(gameLoop, 1000 / 60); // 60 fps
+        alienSpawnInterval = setInterval(spawnAlien, 1000);
     }
-}
-
-document.addEventListener('click', shoot);
-document.addEventListener('touchstart', shoot);
-
-function shoot(event) {
-    if (gameRunning) {
+    
+    function endGame() {
+        clearInterval(gameInterval);
+        clearInterval(alienSpawnInterval);
+        isGameRunning = false;
+        restartGameButton.style.display = 'block';
+        endingVideo.style.display = 'block';
+        endMessage.style.display = 'block';
+        backgroundMusic.pause();
+    }
+    
+    function restartGame() {
+        endingVideo.style.display = 'none';
+        endMessage.style.display = 'none';
+        restartGameButton.style.display = 'none';
+        startGame();
+    }
+    
+    function gameLoop() {
+        moveBullets();
+        moveAliens();
+        checkCollisions();
+    }
+    
+    function spawnBullet() {
         const bullet = document.createElement('div');
         bullet.className = 'bullet';
-        bullet.style.left = (player.offsetLeft + player.offsetWidth / 2 - 15) + 'px'; // Adjusted for leftward shooting
-        bullet.style.top = (player.offsetTop + player.offsetHeight - 20) + 'px'; // Adjusted for bottom shooting
+        const playerRect = player.getBoundingClientRect();
+        bullet.style.left = (playerRect.left + playerRect.width / 2 - 5 - 10) + 'px'; // 10 פיקסלים שמאלה
+        bullet.style.bottom = (window.innerHeight - playerRect.top) + 'px';
         gameContainer.appendChild(bullet);
-        bullets.push(bullet);
-
-        const moveBullet = setInterval(() => {
-            bullet.style.top = (parseInt(bullet.style.top) - 5) + 'px'; // Adjusted for upward movement
-            if (parseInt(bullet.style.top) < 0) {
-                clearInterval(moveBullet);
+    }
+    
+    function moveBullets() {
+        const bullets = document.querySelectorAll('.bullet');
+        bullets.forEach(bullet => {
+            const bulletBottom = parseFloat(bullet.style.bottom);
+            bullet.style.bottom = (bulletBottom + 10) + 'px';
+            if (bulletBottom > window.innerHeight) {
                 bullet.remove();
-                bullets = bullets.filter(b => b !== bullet);
             }
+        });
+    }
+    
+    function spawnAlien() {
+        const alien = document.createElement('div');
+        alien.className = 'alien';
+        alien.style.left = Math.random() * (window.innerWidth - 75) + 'px';
+        alien.style.top = '0px';
+        gameContainer.appendChild(alien);
+    }
+    
+    function moveAliens() {
+        const aliens = document.querySelectorAll('.alien');
+        aliens.forEach(alien => {
+            const alienTop = parseFloat(alien.style.top);
+            alien.style.top = (alienTop + 5) + 'px';
+            if (alienTop > window.innerHeight) {
+                alien.remove();
+                endGame();
+            }
+        });
+    }
+    
+    function checkCollisions() {
+        const bullets = document.querySelectorAll('.bullet');
+        const aliens = document.querySelectorAll('.alien');
+        bullets.forEach(bullet => {
+            const bulletRect = bullet.getBoundingClientRect();
             aliens.forEach(alien => {
-                if (isColliding(bullet, alien)) {
-                    clearInterval(moveBullet);
+                const alienRect = alien.getBoundingClientRect();
+                if (bulletRect.left < alienRect.left + alienRect.width &&
+                    bulletRect.left + bulletRect.width > alienRect.left &&
+                    bulletRect.top < alienRect.top + alienRect.height &&
+                    bulletRect.top + bulletRect.height > alienRect.top) {
                     bullet.remove();
-                    bullets = bullets.filter(b => b !== bullet);
                     alien.remove();
-                    aliens = aliens.filter(a => a !== alien);
-                    increaseScore();
+                    score += 10;
+                    scoreDisplay.textContent = 'Score: ' + score;
                 }
             });
-        }, 10);
+        });
     }
-}
-
-function isColliding(element1, element2) {
-    const rect1 = element1.getBoundingClientRect();
-    const rect2 = element2.getBoundingClientRect();
-    return !(rect1.right < rect2.left ||
-        rect1.left > rect2.right ||
-        rect1.bottom < rect2.top ||
-        rect1.top > rect2.bottom);
-}
-
-function handleCollision() {
-    endGame();
-}
-
-function increaseScore() {
-    score += 10;
-    scoreDisplay.textContent = `Score: ${score}`;
-}
+    
+    document.addEventListener('click', function (event) {
+        if (isGameRunning) {
+            spawnBullet();
+        }
+    });
+    
+    startGameButton.addEventListener('click', function () {
+        loadingMessage.style.display = 'block';
+        backgroundMusic.play();
+        setTimeout(function () {
+            openingSlideshow.style.display = 'none';
+            loadingMessage.style.display = 'none';
+            startGame();
+        }, 5000); // המתן 5 שניות עד לסיום טעינת הוידאו
+    });
+    
+    restartGameButton.addEventListener('click', restartGame);
+});
